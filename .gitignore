@@ -1,3 +1,15 @@
+# Project file
+*.Rproj
+
+# Complete datasets
+.fullDatasets/
+
+# Sensitive datasets
+.SENSITIVE/
+
+# rvar
+rvar/
+
 # History files
 .Rhistory
 .Rapp.history
