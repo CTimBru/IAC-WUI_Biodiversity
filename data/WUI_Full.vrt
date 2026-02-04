@@ -1,0 +1,48 @@
+<VRTDataset rasterXSize="67724" rasterYSize="44469">
+  <SRS dataAxisToSRSAxisMapping="2,1">GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AXIS["Latitude",NORTH],AXIS["Longitude",EAST],AUTHORITY["EPSG","4326"]]</SRS>
+  <GeoTransform> -1.2089451025594551e+02,  1.0395458119307132e-04,  0.0000000000000000e+00,  3.6391594147960561e+01,  0.0000000000000000e+00, -1.0395458119307141e-04</GeoTransform>
+  <VRTRasterBand dataType="Float32" band="1">
+    <NoDataValue>nan</NoDataValue>
+    <ColorInterp>Gray</ColorInterp>
+    <ComplexSource>
+      <SourceFilename relativeToVRT="0">C:\Users\LilC\Desktop\WLAC\IAC-WUI_Biodiversity\data/WUI_SA_1.tif</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SourceProperties RasterXSize="67724" RasterYSize="8894" DataType="Float32" BlockXSize="67724" BlockYSize="1" />
+      <SrcRect xOff="0" yOff="0" xSize="67724" ySize="8894" />
+      <DstRect xOff="0" yOff="0" xSize="67724" ySize="8894" />
+      <NODATA>nan</NODATA>
+    </ComplexSource>
+    <ComplexSource>
+      <SourceFilename relativeToVRT="0">C:\Users\LilC\Desktop\WLAC\IAC-WUI_Biodiversity\data/WUI_SA_2.tif</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SourceProperties RasterXSize="67724" RasterYSize="8894" DataType="Float32" BlockXSize="67724" BlockYSize="1" />
+      <SrcRect xOff="0" yOff="0" xSize="67724" ySize="8894" />
+      <DstRect xOff="0" yOff="8894" xSize="67724" ySize="8894" />
+      <NODATA>nan</NODATA>
+    </ComplexSource>
+    <ComplexSource>
+      <SourceFilename relativeToVRT="0">C:\Users\LilC\Desktop\WLAC\IAC-WUI_Biodiversity\data/WUI_SA_3.tif</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SourceProperties RasterXSize="67724" RasterYSize="8894" DataType="Float32" BlockXSize="67724" BlockYSize="1" />
+      <SrcRect xOff="0" yOff="0" xSize="67724" ySize="8894" />
+      <DstRect xOff="0" yOff="17788" xSize="67724" ySize="8894" />
+      <NODATA>nan</NODATA>
+    </ComplexSource>
+    <ComplexSource>
+      <SourceFilename relativeToVRT="0">C:\Users\LilC\Desktop\WLAC\IAC-WUI_Biodiversity\data/WUI_SA_4.tif</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SourceProperties RasterXSize="67724" RasterYSize="8894" DataType="Float32" BlockXSize="67724" BlockYSize="1" />
+      <SrcRect xOff="0" yOff="0" xSize="67724" ySize="8894" />
+      <DstRect xOff="0" yOff="26682" xSize="67724" ySize="8894" />
+      <NODATA>nan</NODATA>
+    </ComplexSource>
+    <ComplexSource>
+      <SourceFilename relativeToVRT="0">C:\Users\LilC\Desktop\WLAC\IAC-WUI_Biodiversity\data/WUI_SA_5.tif</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SourceProperties RasterXSize="67724" RasterYSize="8893" DataType="Float32" BlockXSize="67724" BlockYSize="1" />
+      <SrcRect xOff="0" yOff="0" xSize="67724" ySize="8893" />
+      <DstRect xOff="0" yOff="35576" xSize="67724" ySize="8893" />
+      <NODATA>nan</NODATA>
+    </ComplexSource>
+  </VRTRasterBand>
+</VRTDataset>

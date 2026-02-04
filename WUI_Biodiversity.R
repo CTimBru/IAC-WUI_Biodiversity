@@ -106,8 +106,11 @@ if(file.exists('data/FHSZ_Data.shp')){
 
 
 #WUI
-if(file.exists('data/WUI_SA.tif')){
-  WUI_Data <- rast('data/WUI_SA.tif')
+if(file.exists('data/WUI_SA_1.tif')){
+  #Get a list of the split WUI files
+  WUI_list <- list.files(path='data/',pattern='WUI_SA_.*\\.tif$',full.names=TRUE)
+  #Load the files into a list of spat rasters
+  WUI_Data <- vrt(WUI_list,'data/WUI_Full.vrt',overwrite=TRUE)
 } else {
   #Download Wildland Urban Interface raster of North America from: https://geoserver.silvis.forest.wisc.edu/geodata/globalwui/NA.zip
   #Gather a list of all directories in the WUI folder that begin with X: (Coordinate System )
@@ -120,15 +123,27 @@ if(file.exists('data/WUI_SA.tif')){
   #Project Study Counties data into WUI:Faster
   Study_counties_WUI_projection <- st_transform(Study_counties,WUI_crs)
   
+  #set i
+  i <- 1
+  
   #Build an index of all the tiles, including a polygon of the bounds of each
   WUI_tiles_index <- map_dfr(WUI_tiles,function(file){
     
-    #Get the header only of a raster file
-    WUI_tile_header <- rast(file)
-    #Get the extent of that header
-    WUI_tile_extent <- ext(WUI_tile_header)
+  #Print a progress update to soothe the soul
+  if (i %% 50 == 0) {
+    cat(paste0("[", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "] Processing file ", i, " of ", length(WUI_tiles), "\n"))
+  }
     
-    st_as_sf(as.polygons(WUI_tile_extent,crs=WUI_crs)) %>% mutate(filename=file)
+  #Get the header only of a raster file
+  WUI_tile_header <- rast(file)
+  #Get the extent of that header
+  WUI_tile_extent <- ext(WUI_tile_header)
+  
+  #increment i
+  i <<- i+1
+  
+  #Convert the extent into a simple polygon & attaches a tag based on the filename
+  st_as_sf(as.polygons(WUI_tile_extent,crs=WUI_crs)) %>% mutate(filename=file)
   })
   
   #Find the tiles that overlap with Study counties
@@ -145,11 +160,25 @@ if(file.exists('data/WUI_SA.tif')){
   #Reproject to 4326 ~1h 30mins to complete
   WUI_Data <- project(WUI_Data,'EPSG:4326')
   
-  #Write out the raster
-  raster::writeRaster(WUI_Data,'data/WUI_SA.tif',overwrite=TRUE)
+  ##Split raster for GIThub
+  #Select number of splits -> number of rows per split
+  WUI_n_splits <- 5
+  WUI_rows_per_chunk <- ceiling(nrow(WUI_Data) / WUI_n_splits)
+  #Loop for each split
+  for(i in 1:WUI_n_splits){
+    #Define the row range for this particular chunk
+    WUI_start_row <- ((i-1)*WUI_rows_per_chunk) + 1
+    WUI_end_row <- min(i*WUI_rows_per_chunk,nrow(WUI_Data))
+    
+    #Crop the raster to those rows
+    WUI_chunk <- WUI_Data[WUI_start_row:WUI_end_row,, drop=FALSE]
+    
+    #Write out each raster
+    raster::writeRaster(WUI_chunk,paste0('data/WUI_SA_',i,'.tif'),overwrite=TRUE)
+  }
   
   #Drop unnecessary vars
-  rm(WUI_tile,WUI_crs,Study_counties_WUI_projection,WUI_tiles_index)
+  rm(WUI_tiles,WUI_crs,Study_counties_WUI_projection,WUI_tiles_index,i,WUI_tile_header,WUI_tile_extent,WUI_n_splits,WUI_rows_per_chunk,WUI_start_row,WUI_end_row,WUI_chunk)
 }
 
 #Check for Correlations between FHSZ & WUI, WHP & WUI
