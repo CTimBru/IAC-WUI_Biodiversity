@@ -104,8 +104,7 @@ if(file.exists('data/FHSZ_Data.shp')){
   st_write(FHSZ_Data,'data/FHSZ_Data.shp',append=FALSE)
 }
 
-
-#WUI
+#WUI Data
 if(file.exists('data/WUI_SA_1.tif')){
   #Get a list of the split WUI files
   WUI_list <- list.files(path='data/',pattern='WUI_SA_.*\\.tif$',full.names=TRUE)
@@ -181,10 +180,40 @@ if(file.exists('data/WUI_SA_1.tif')){
   rm(WUI_tiles,WUI_crs,Study_counties_WUI_projection,WUI_tiles_index,i,WUI_tile_header,WUI_tile_extent,WUI_n_splits,WUI_rows_per_chunk,WUI_start_row,WUI_end_row,WUI_chunk)
 }
 
+# Extract WHP Points
+WHP_points <- terra::extract(WHP_Data,gbif_spatial)
+gbif_spatial$WHP <- WHP_points$Band_1
+rm(WHP_points)
+
+# Add FHSZ Data
+gbif_spatial <- st_join(gbif_spatial,FHSZ_Data, join=st_intersects)
+
+# Add WUI Data
+WUI_points <- terra::extract(WUI_Data,gbif_spatial)
+gbif_spatial$WUI <- WUI_points$WUI_Full
+
+# Group by a unique sample ID based on time & location
+gbif_grouped <- gbif_spatial %>% 
+  group_by(eventDate,as.character(geometry)) %>% 
+  mutate(sampleid = cur_group_id()) %>% 
+  filter(n() >= 20) %>% ungroup()
+
+#Plot WUI from gbif_grouped
+ggplot() +
+  geom_sf(data=Study_counties, fill = 'lightgrey',color='black') +
+  geom_sf(data=gbif_grouped, size=5,alpha=0.7, color=gbif_grouped$WUI
+          )
+theme_minimal()
+
+
 #Check for Correlations between FHSZ & WUI, WHP & WUI
 
 
 #Combining FIRE Data: Do a FAMD to create an equivalent of PCA -> Single 'Fire Risk' statistic -> RF Model? -> Cluster
+
+#1  Moderate. Lower level of wildfire hazard relative to other zones but still subject to wildfire behavior conditions.
+#2	High. Elevated fire hazard due to fuels, terrain, and fire weather conditions.
+#3	Very High. Highest level of wildfire hazard; areas most prone to wildfire spread and intensity.
 
 #0  non-WUI / background / no classification
 #1	Forest/Shrubland/Wetland-dominated Intermix WUI — areas where buildings and wildland vegetation are intermixed and the wildland component is forest/shrub/wetland. 
