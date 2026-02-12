@@ -198,15 +198,60 @@ gbif_grouped <- gbif_spatial %>%
   mutate(sampleid = cur_group_id()) %>% 
   filter(n() >= 20) %>% ungroup()
 
-#Plot WUI from gbif_grouped
-ggplot() +
-  geom_sf(data=Study_counties, fill = 'lightgrey',color='black') +
-  geom_sf(data=gbif_grouped, size=5,alpha=0.7, color=gbif_grouped$WUI
-          )
-theme_minimal()
-
-
 #Check for Correlations between FHSZ & WUI, WHP & WUI
+
+#Mode function for most common categorial data
+get_mode <- function(v) {
+  #Remove any n/a
+  uniq_v <- unique(na.omit(v))
+  
+  #return the most common value
+  uniq_v[which.max(tabulate(match(v,uniq_v)))]
+}
+
+#Collapse gbif_grouped into mean (WHP) or mode (WUI,FHSZ) values for each unique sampleid
+gbif_ANOVA <- gbif_grouped %>%
+  st_drop_geometry() %>%
+  group_by(sampleid) %>%
+  summarise(
+    #Continuous WHP: Mean is appropriate given single spatial coordinate
+    WHP = mean(WHP,na.rm = TRUE),
+    
+    #Mode WUI & FHSZ: Mode is appropriate given categorical data & single spatial coordinate
+    WUI = as.factor(get_mode(WUI)),
+    FHSZ = as.factor(get_mode(FHSZ))
+  ) %>%
+  ungroup()
+
+#Drop FHSZ (contain some n/a)
+gbif_ANOVA_WUIWHP <- gbif_ANOVA %>% dplyr::select(WHP,WUI) %>% filter(!is.na(WHP) & !is.na(WUI))
+
+#Drop n/a (FHSZ measures)
+gbif_ANOVA_ALL <- gbif_ANOVA %>% filter(!is.na(WHP) & !is.na(WUI) & !is.na(FHSZ))
+
+#ANOVA Analysis for All the data, How does WUI & FHSZ explain WHP
+print(paste('WHP ~ WUI + FHSZ Analysis N:',nrow(gbif_ANOVA_ALL)))
+combined_model <- aov(WHP ~ WUI + FHSZ, data=gbif_ANOVA_ALL)
+
+print(summary(combined_model))
+# Very Significant that WUI is a predictor of WHP
+# Not significant that FHSZ is a predictor of WHP
+print(TukeyHSD(combined_model))
+# 2 & 3 not significantly different
+
+#ANOVA Analysis for WHP & WUI
+print(paste('WHP ~ WUI + Analysis N:',nrow(gbif_ANOVA_WUIWHP)))
+partial_model <- aov(WHP ~ WUI, data=gbif_ANOVA_WUIWHP)
+
+print(summary(partial_model))
+# Very Significant that WUI is a predictor of WHP
+print(TukeyHSD(partial_model))
+# 5 & 1 are significantly different, and 5 is much riskier for WHP
+# 8 & 1 are significantly different, and 1 is riskier for WHP
+# 5 & 8 are significantly different, and 5 is much riskier for WHP
+# Wildlands more significant than Other for WHP
+
+
 
 
 #Combining FIRE Data: Do a FAMD to create an equivalent of PCA -> Single 'Fire Risk' statistic -> RF Model? -> Cluster
@@ -224,3 +269,70 @@ theme_minimal()
 #6	Non-WUI: Grassland-dominated — grassland not in WUI. 
 #7	Non-WUI: Urban — built/urban land not in a WUI context. 
 #8	Non-WUI: Other — other land types (e.g., water, bare land) outside WUI definitions.
+
+#PLOTTING
+
+#Plot WUI from gbif_grouped
+ggplot() +
+  geom_sf(data=Study_counties, fill = 'lightgrey',color='black') +
+  geom_sf(data=gbif_grouped, size=2,alpha=0.7, color=gbif_grouped$WUI) +
+  theme_minimal()
+
+#Examine distribution of WUI indecies across gbif_grouped samples
+WUI_gbif_grouped <- gbif_grouped %>% st_drop_geometry() %>% count(WUI,name='WUI_Count')
+
+#Plot WUI Count from gbif_grouped
+ggplot(WUI_gbif_grouped, aes(x=reorder(WUI,-WUI_Count),y=WUI_Count)) +
+  geom_bar(stat='identity',fill='lightgrey', color='black') +
+  geom_text(aes(label=WUI_Count),vjust = -0.5) +
+  theme_minimal() +
+  labs(
+    title = 'Distribution of the WUI Types',
+    x = 'WUI Index',
+    y = 'Frequency'
+  )
+# 1-Intermix F/S/W, 5-Wildlands F/S/W, 8-Water/Bare, 6-Wildlands G
+rm(WUI_gbif_grouped)
+
+#Plot WHP from gbif_grouped
+ggplot() +
+  geom_sf(data=Study_counties, fill = 'lightgrey',color='black') +
+  geom_sf(data=gbif_grouped, size=2,alpha=0.7, color=gbif_grouped$WHP) +
+  theme_minimal()
+
+#Examine distribution of WUI indecies across gbif_grouped samples (Binned into log)
+WHP_gbif_grouped <- gbif_grouped %>% st_drop_geometry() %>% 
+  mutate(
+    WHP_Band = cut(WHP,breaks=2^(5:12),include.lowest = TRUE, dig.lab = 2)
+  ) %>%
+  count(WHP_Band,name='WHP_Count') %>%
+  filter(!is.na(WHP_Band))
+
+#Plot WUI Count from gbif_grouped
+ggplot(WHP_gbif_grouped, aes(x=reorder(WHP_Band,-WHP_Count),y=WHP_Count)) +
+  geom_bar(stat='identity',fill='lightgrey', color='black') +
+  geom_text(aes(label=WHP_Count),vjust = -0.5) +
+  theme_minimal() +
+  labs(
+    title = 'Distribution of the WHP Types',
+    x = 'Log of WHP Index',
+    y = 'Frequency'
+  )
+rm(WHP_gbif_grouped)
+
+#Plot ANOVAs
+
+ggplot(gbif_ANOVA_ALL, aes(x = WUI, y = WHP, fill=WUI)) +
+  geom_boxplot(show.legend = TRUE) +
+  labs(title = 'WHP by WUI',y='WHP',x='WUI Code') +
+  theme_minimal()
+
+ggplot(gbif_ANOVA_ALL, aes(x = FHSZ, y = WHP, fill=WUI)) +
+  geom_boxplot(show.legend = TRUE) +
+  labs(title = 'WHP by FHSZ',y='WHP',x='FHSZ Code') +
+  theme_minimal()
+
+ggplot(gbif_ANOVA_WUIWHP, aes(x = WUI, y = WHP, fill=WUI)) +
+  geom_boxplot(show.legend = TRUE) +
+  labs(title = 'WHP by WUI',y='WHP',x='WUI Code') +
+  theme_minimal()
