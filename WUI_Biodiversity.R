@@ -60,9 +60,8 @@ ggplot() +
   
 #Get number of records per county
 Species_by_county <- st_join(gbif_spatial,Study_counties %>% select('NAME'), left=FALSE) %>% pull(NAME) %>% table
+print(Species_by_county)
 # LA: 85, O: 35, SBer: 5387, SD: 1933, SBar:5886, V:42
-# TODO: Does the geographic spread skew our analysis?
-# Look at median WUI for the all the samples in each county?
 
 #WHP
 #WHP Data: https://www.fs.usda.gov/rds/archive/catalog/RDS-2015-0047-4
@@ -193,14 +192,73 @@ WUI_points <- terra::extract(WUI_Data,gbif_spatial)
 gbif_spatial$WUI <- WUI_points$WUI_Full
 
 # Group by a unique sample ID based on time & location
+# Remove undersampled Sites
 gbif_grouped <- gbif_spatial %>% 
   group_by(eventDate,as.character(geometry)) %>% 
   mutate(sampleid = cur_group_id()) %>% 
   filter(n() >= 20) %>% ungroup()
 
+# Set FHSZ as a factor
+gbif_grouped$FHSZ <- as.factor(gbif_grouped$FHSZ)
+
+# Create presence/absence data
+gbif_taxa_count <- gbif_grouped[,c('sampleid','taxonKey')]
+#3,350 unique sample+species+location -> only presence noted, not number of times
+gbif_taxa_count <- gbif_taxa_count[!duplicated(gbif_taxa_count),]
+#Set to 1 i.e. species present in this sample.
+gbif_taxa_count <- gbif_taxa_count %>%
+  dplyr::group_by(sampleid,taxonKey) %>%
+  dplyr::mutate(taxonCount = n()) %>%
+  ungroup()
+#Take the presence data, and add absence for every sampleid
+gbif_pres_abs <- gbif_taxa_count %>%
+  pivot_wider(
+    names_from = taxonKey,
+    values_from = taxonCount,
+    values_fill = 0
+  )
+#Total 977 species
+#Create dataframe
+gbif_pres_abs <- as.data.frame(gbif_pres_abs)
+
+#Get values for WHP, FHSZ, and WUI for each sample
+gbif_data_lookup <- gbif_grouped %>%
+  select(sampleid,WUI,WHP,FHSZ) %>%
+  distinct() %>%
+  st_drop_geometry()
+
+#Join the data to each sampleid in gbif_pres_abs
+gbif_pa_data <- gbif_pres_abs %>% left_join(gbif_data_lookup, by='sampleid')
+gbif_pa_data$WUI  <- as.factor(gbif_pa_data$WUI)
+gbif_pa_data$FHSZ <- as.factor(gbif_pa_data$FHSZ)
+rownames(gbif_pa_data) <- gbif_pa_data$sampleid
+gbif_pa_data$sampleid <- NULL
+
+#Zeta.varpart Pairwise similarity
+Zeta.varpart(
+ Zeta.msgdm(
+   data.spec=gbif_pa_data[,!(names(gbif_pa_data) %in% c('geometry','WUI','WHP','FHSZ'))],
+   data.env=gbif_pa_data[,c('WUI','WHP','FHSZ')],
+   xy=st_coordinates(gbif_pa_data$geometry),
+   order=2
+ ) 
+)
+#Effect of environment for Pairwise similarity (Species turnover between pairs of locations)
+# 0.8% explained by environment
+# 22.6% explained by distance
+# 35.7% explained by location
+# 40.8% Unexplained
+
+#Check decline
+zeta_dec <- Zeta.decline.ex(gbif_pa_data[, !(names(gbif_pa_data) %in% c('geometry','WUI', 'WHP', 'FHSZ'))], orders = 1:12)
+plot(zeta_dec)
+#Decline is too high to run varpart on 3 or higher orders
+
+
+
 #Check for Correlations between FHSZ & WUI, WHP & WUI
 
-#Mode function for most common categorial data
+#Mode function for most common categorical data
 get_mode <- function(v) {
   #Remove any n/a
   uniq_v <- unique(na.omit(v))
@@ -249,9 +307,10 @@ print(TukeyHSD(partial_model))
 # 5 & 1 are significantly different, and 5 is much riskier for WHP
 # 8 & 1 are significantly different, and 1 is riskier for WHP
 # 5 & 8 are significantly different, and 5 is much riskier for WHP
+# Significant Risk 5->1->8 FSW Wild->FSW Intermix->Other(Water etc.)
 # Wildlands more significant than Other for WHP
 
-
+#Alpha Diversity comparison
 
 
 #Combining FIRE Data: Do a FAMD to create an equivalent of PCA -> Single 'Fire Risk' statistic -> RF Model? -> Cluster
