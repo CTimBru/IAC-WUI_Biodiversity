@@ -6,14 +6,15 @@ require(raster)
 require(sf)
 require(tidyverse)
 require(data.table)
-require(fossil)
+require(iNEXT)
 require(zetadiv)
 
 # Load users working directory
 source('rvar/var.R')
 
 # Set random number string
-set.seed(1)
+seed_n <- 1
+set.seed(seed_n)
 
 # Set working directory
 # RVar_wd should be stored in rvar/var.R
@@ -50,13 +51,6 @@ if(file.exists('data/Study_counties.shp')){
   
   st_write(Study_counties,'data/Study_counties.shp',append = FALSE)
 }
-  
-#Plotting gbif data with CA Counties
-#Plot GBIF Data & CA Counties
-ggplot() +
-  geom_sf(data=Study_counties, fill = 'lightgrey',color='black') +
-  geom_sf(data=gbif_spatial, size=1,alpha=0.7, color='orange')
-  theme_minimal()
   
 #Get number of records per county
 Species_by_county <- st_join(gbif_spatial,Study_counties %>% select('NAME'), left=FALSE) %>% pull(NAME) %>% table
@@ -192,12 +186,14 @@ WUI_points <- terra::extract(WUI_Data,gbif_spatial)
 gbif_spatial$WUI <- WUI_points$WUI_Full
 
 #########
-# Biodiversity Analysis: undersampled thresholds of 20, 50 & 100
+# Biodiversity Analysis: 'undersampled' thresholds of 20, 50 & 100
 #########
 
-zeta_n_thresholds <- c(20,50,100)
+diversity_n_thresholds <- c(20,50,100)
 
-for (n_threshold in zeta_n_thresholds) {
+# Research Question: how much zeta diversity varies with WUI and distance for common (High zeta order) and rare species (Low zeta order).
+
+for (n_threshold in diversity_n_thresholds) {
   # This errors out on windows PCs: TryCatch to handle the error gracefully
   
   
@@ -249,36 +245,160 @@ for (n_threshold in zeta_n_thresholds) {
   
   zeta_orders <- c(2,10)
   
+  Zeta_msgdm <- list()
+  
+  n_loop <- 1
   
   #Zeta.varpart Pairwise & n=10 similarity
   for (zeta_order in zeta_orders) {
-    tryCatch({
-      zeta_variation <- Zeta.varpart(
-        Zeta.msgdm(
-          data.spec=gbif_pa_data[,!(names(gbif_pa_data) %in% c('geometry','WUI','WHP','FHSZ'))],
-          data.env=gbif_pa_data[,c('WUI','WHP','FHSZ')],
-          xy=st_coordinates(gbif_pa_data$geometry),
-          order=zeta_order
-        ) 
-      )
-      print(paste0("For n:",n_threshold," & zeta order:",zeta_order))
-      print(zeta_variation)
-      print("a: envrionmental factors, b: distance, c: location, d:unexplained")
-    },error=function(e){cat('ERROR:',conditionMessage(e),'\n','zeta.varpart failed for n:',n_threshold,' & zeta order:',zeta_order,'\n')})
+    env_data <- c('WUI','WHP','FHSZ')
+    for (n in 1:length(env_data)){
+      env_combinations <- combn(env_data,n, simplify=FALSE)
+      for (i in 1:length(env_combinations)){
+        current_env_vars <- env_combinations[[i]]
+        if (n == 1){
+          current_env_data <- data.frame(st_drop_geometry(gbif_pa_data[,current_env_vars]))
+          complete_env <- complete.cases(current_env_data)
+          current_env_data <- data.frame(current_env_data[complete_env,])
+          colnames(current_env_data) <- current_env_vars
+          current_spec_data <- gbif_pa_data[,!(names(gbif_pa_data) %in% c('geometry','WUI','WHP','FHSZ'))]
+          current_spec_data <- current_spec_data[complete_env,]
+          current_xy_data <- gbif_pa_data[complete_env,]$geometry
+          
+        } else {
+          current_env_data <- st_drop_geometry(gbif_pa_data[,current_env_vars])
+          current_spec_data <- gbif_pa_data[,!(names(gbif_pa_data) %in% c('geometry','WUI','WHP','FHSZ'))]
+          current_xy_data <- gbif_pa_data$geometry
+        }
+        #MS-GDM needs at least one numeric value. If NO column is numeric, designate the first column as numeric.
+        if (!any(sapply(current_env_data, is.numeric))) {
+          current_env_data[[1]] <- as.numeric(as.factor(current_env_data[[1]]))
+          print(paste("Forced column", names(current_env_data)[1], "to numeric for MS-GDM."))
+        }
+        current_vars <- paste(current_env_vars,collapse=', ')
+        print(paste("Current Var:",current_vars))
+        Zeta_msgdm[[n_loop]] <- tryCatch({
+          #Reset seed immediately as zetadiversity functions have their own montecarlo components.
+          set.seed(seed_n)
+          zeta_variation <- Zeta.varpart(
+            Zeta.msgdm(
+              data.spec=current_spec_data,
+              data.env=current_env_data,
+              xy=st_coordinates(current_xy_data),
+              order=zeta_order
+            ) 
+          )
+          print(paste0("For n:",n_threshold," & zeta order:",zeta_order))
+          print(zeta_variation)
+          print("a: envrionmental factors, b: distance, c: location, d:unexplained")
+          # Build a data frame row
+          data.frame(
+            zeta_order = zeta_order,
+            n_threshold = n_threshold, 
+            env_vars = current_vars,
+            status = "Success",
+            error_msg = NA,
+            # Note: Adjust extraction below based on how Zeta.varpart specifically names its output
+            a_env = zeta_variation$`Adjusted Rsq`[4], 
+            b_dist = zeta_variation$`Adjusted Rsq`[5],
+            c_loc = zeta_variation$`Adjusted Rsq`[6],
+            d_unexp = zeta_variation$`Adjusted Rsq`[7],
+            stringsAsFactors = FALSE
+          )
+        },error=function(e){# Build a failed data frame row to capture the error safely
+          data.frame(
+            zeta_order = zeta_order,
+            n_threshold = n_threshold,
+            env_vars = current_vars,
+            status = "Error",
+            error_msg = conditionMessage(e),
+            a_env = NA, b_dist = NA, c_loc = NA, d_unexp = NA,
+            stringsAsFactors = FALSE
+          )
+        })
+        n_loop <- n_loop + 1
+      }
+    }
   }
   
+  all_Zeta_msgdm <- do.call(rbind, Zeta_msgdm)
+  write.csv(all_Zeta_msgdm, paste("zeta_msgdm_results_n_",n_threshold,".csv", sep=""), row.names = FALSE)
+  
   #Check decline
-  zeta_dec <- Zeta.decline.ex(gbif_pa_data[, !(names(gbif_pa_data) %in% c('geometry','WUI', 'WHP', 'FHSZ'))], orders = 1:12)
+  zeta_dec <- Zeta.decline.ex(gbif_pa_data[, !(names(gbif_pa_data) %in% c('geometry','WUI', 'WHP', 'FHSZ'))], orders = 1:max(zeta_orders))
   Plot.zeta.decline(zeta_dec)
   #Decline is too high to run varpart on 3 or higher orders on windows
 }
 
+
+########
+# Diversity measurements
+########
+
+#iNext ChaoRichness
+# ChaoRichness(presabsdf,datatype='incidence_raw')
+# iNEXT(presabsdf,q=0,datatype='incidence_raw')
 
 
 ########
 # Correlation & Data Analysis:
 ########
 
+
+#MAKE LEAFLET MAP OF ALL N 20,50,100 SAMPLES
+#Plotting gbif data with CA Counties
+#Plot GBIF Data & CA Counties
+ggplot() +
+  geom_sf(data=Study_counties, fill = 'lightgrey',color='black') +
+  geom_sf(data=gbif_spatial, size=1,alpha=0.7, color='orange') +
+  theme_minimal()
+
+# Group by a unique sample ID based on time & location
+# Remove undersampled Sites
+gbif_grouped <- gbif_spatial %>% 
+  group_by(eventDate,as.character(geometry)) %>% 
+  mutate(sampleid = cur_group_id()) %>% 
+  filter(n() >= 20) %>% ungroup()
+
+# All data is from the Center for Biodiversity Genomics, in combination of samples containing at least 20 separate taxa, -> inferred to be eDNA samples
+print(unique(gbif_grouped$institutionCode))
+
+# Set FHSZ as a factor
+gbif_grouped$FHSZ <- as.factor(gbif_grouped$FHSZ)
+
+# Create presence/absence data
+gbif_taxa_count <- gbif_grouped[,c('sampleid','taxonKey')]
+#3,350 unique sample+species+location -> only presence noted, not number of times
+gbif_taxa_count <- gbif_taxa_count[!duplicated(gbif_taxa_count),]
+#Set to 1 i.e. species present in this sample.
+gbif_taxa_count <- gbif_taxa_count %>%
+  dplyr::group_by(sampleid,taxonKey) %>%
+  dplyr::mutate(taxonCount = n()) %>%
+  ungroup()
+#Take the presence data, and add absence for every sampleid
+gbif_pres_abs <- gbif_taxa_count %>%
+  pivot_wider(
+    names_from = taxonKey,
+    values_from = taxonCount,
+    values_fill = 0
+  )
+
+
+#Create dataframe
+gbif_pres_abs <- as.data.frame(gbif_pres_abs)
+
+#Get values for WHP, FHSZ, and WUI for each sample
+gbif_data_lookup <- gbif_grouped %>%
+  select(sampleid,WUI,WHP,FHSZ) %>%
+  distinct() %>%
+  st_drop_geometry()
+
+#Join the data to each sampleid in gbif_pres_abs
+gbif_pa_data <- gbif_pres_abs %>% left_join(gbif_data_lookup, by='sampleid')
+gbif_pa_data$WUI  <- as.factor(gbif_pa_data$WUI)
+gbif_pa_data$FHSZ <- as.factor(gbif_pa_data$FHSZ)
+rownames(gbif_pa_data) <- gbif_pa_data$sampleid
+gbif_pa_data$sampleid <- NULL
 
 
 #Check for Correlations between FHSZ & WUI, WHP & WUI

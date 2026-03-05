@@ -1,0 +1,15 @@
+"zeta_order","n_threshold","env_vars","status","error_msg","a_env","b_dist","c_loc","d_unexp"
+2,100,"WUI","Error","singular fit encountered",NA,NA,NA,NA
+2,100,"WHP","Success",NA,0.00183273285526062,0.196653358650207,0.436632537851005,0.364881370643527
+2,100,"FHSZ","Error","singular fit encountered",NA,NA,NA,NA
+2,100,"WUI, WHP","Success",NA,0.00133867263832907,0.197147418867139,0.444333247888552,0.35718066060598
+2,100,"WUI, FHSZ","Error","singular fit encountered",NA,NA,NA,NA
+2,100,"WHP, FHSZ","Success",NA,0.00125448834488204,0.197231603160586,0.438297365287093,0.363216543207439
+2,100,"WUI, WHP, FHSZ","Success",NA,0.00104850173899959,0.197437589766469,0.444839718157472,0.35667419033706
+10,100,"WUI","Error","length of 'dimnames' [1] not equal to array extent",NA,NA,NA,NA
+10,100,"WHP","Error","length of 'dimnames' [1] not equal to array extent",NA,NA,NA,NA
+10,100,"FHSZ","Error","length of 'dimnames' [1] not equal to array extent",NA,NA,NA,NA
+10,100,"WUI, WHP","Error","length of 'dimnames' [1] not equal to array extent",NA,NA,NA,NA
+10,100,"WUI, FHSZ","Error","length of 'dimnames' [1] not equal to array extent",NA,NA,NA,NA
+10,100,"WHP, FHSZ","Error","length of 'dimnames' [1] not equal to array extent",NA,NA,NA,NA
+10,100,"WUI, WHP, FHSZ","Error","length of 'dimnames' [1] not equal to array extent",NA,NA,NA,NA
